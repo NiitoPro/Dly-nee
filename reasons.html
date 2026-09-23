@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>50 причин</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="hearts"></div>
+
+  <header class="top">
+    <a href="index.html">← назад</a>
+    <span id="counter">0 / 50</span>
+  </header>
+
+  <h1 class="title">50 причин,<br>почему я тебя люблю и обожаю</h1>
+  <p class="title-sub">Нажми на карточку, чтобы открыть причину</p>
+
+  <div id="grid" class="grid"></div>
+
+  <div class="center">
+    <button class="btn" onclick="revealAll()">Открыть все</button>
+    <a href="one.html" class="btn ghost">Дальше →</a>
+  </div>
+
+<script src="script.js"></script>
+<script>buildReasons();</script>
+</body>
+</html>
