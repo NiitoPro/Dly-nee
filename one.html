@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Одна причина</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="hearts"></div>
+
+  <div class="center full">
+    <div id="tease" class="tease">
+      <p class="date-badge">Одна единственная</p>
+      <h1 class="title">1 причина,<br>что мне в тебе не нравится</h1>
+      <p class="sub">Она есть. Серьёзно.</p>
+      <button class="btn" onclick="showTruth()">Показать</button>
+    </div>
+
+    <div id="truth" class="truth hidden">
+      <p class="big">То, что ты так далеко,<br>когда тебя нет рядом.</p>
+      <p class="sub">Это единственное, что я хотел бы исправить.<br>Всё остальное в тебе — идеально.</p>
+      <div class="btns">
+        <a href="final.html" class="btn">Дальше →</a>
+      </div>
+    </div>
+  </div>
+
+<script src="script.js"></script>
+<script>
+  function showTruth(){
+    document.getElementById('tease').classList.add('hidden');
+    document.getElementById('truth').classList.remove('hidden');
+  }
+</script>
+</body>
+</html>
