@@ -7,15 +7,16 @@
 <title>Мини-игра</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { overscroll-behavior:none; touch-action:manipulation; }
   body {
     background: radial-gradient(circle at 50% 0%, #3d1626, #14080e 60%);
     color:#ffeaf1; font-family: Georgia, serif;
     min-height:100vh; display:flex; flex-direction:column;
     align-items:center; justify-content:center;
-    overflow:hidden; padding:16px;
+    overflow:hidden; padding:12px;
   }
-  h1 { font-size:20px; margin-bottom:6px; color:#ffb3c9; text-align:center; }
-  p.sub { font-size:13px; opacity:.7; margin-bottom:14px; text-align:center; }
+  h1 { font-size:19px; margin-bottom:4px; color:#ffb3c9; text-align:center; }
+  p.sub { font-size:12px; opacity:.7; margin-bottom:10px; text-align:center; }
   #wrap {
     position:relative; width:100%; max-width:420px;
     aspect-ratio: 2/3;
@@ -23,6 +24,7 @@
     border-radius:18px; overflow:hidden;
     border:1px solid rgba(255,77,125,.3);
     box-shadow:0 20px 60px rgba(0,0,0,.6);
+    flex-shrink:0;
   }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   .overlay {
@@ -32,13 +34,10 @@
     text-align:center; padding:24px; z-index:5;
   }
   .overlay h2 { font-size:23px; margin-bottom:14px; color:#ffb3c9; }
-  .overlay p { font-size:15px; opacity:.95; margin-bottom:18px; line-height:1.6; }
+  .overlay p { font-size:15px; opacity:.95; margin-bottom:16px; line-height:1.6; }
   .overlay .prize {
-    font-size:17px;
-    color:#ff4d7d;
-    font-style:italic;
-    line-height:1.6;
-    margin: 10px 0 22px;
+    font-size:17px; color:#ff4d7d; font-style:italic;
+    line-height:1.6; margin: 10px 0 22px;
   }
   .overlay button, .btn {
     padding:13px 26px; border-radius:40px; border:none;
@@ -48,11 +47,15 @@
     text-decoration:none; display:inline-block;
   }
   .btn.ghost { background:transparent; border:1.5px solid #ff4d7d; color:#ffb3c9; box-shadow:none; margin-top:12px; }
-  .controls { margin-top:14px; display:flex; gap:10px; }
+  .controls { margin-top:12px; display:flex; gap:14px; }
   .controls button {
-    width:64px; height:64px; border-radius:50%; font-size:22px;
-    background:rgba(255,77,125,.2); border:1.5px solid #ff4d7d; color:#ffb3c9;
+    width:76px; height:76px; border-radius:50%; font-size:26px;
+    background:rgba(255,77,125,.22); border:2px solid #ff4d7d; color:#ffb3c9;
+    user-select:none; -webkit-user-select:none;
+    touch-action:none;
+    display:flex; align-items:center; justify-content:center;
   }
+  .controls button:active { background:rgba(255,77,125,.45); transform:scale(.95); }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -86,11 +89,9 @@
 </div>
 
 <div class="controls">
-  <button ontouchstart="press('left',true)" ontouchend="press('left',false)"
-          onmousedown="press('left',true)" onmouseup="press('left',false)">←</button>
-  <button ontouchstart="jump()" onmousedown="jump()">↑</button>
-  <button ontouchstart="press('right',true)" ontouchend="press('right',false)"
-          onmousedown="press('right',true)" onmouseup="press('right',false)">→</button>
+  <button id="btnLeft">←</button>
+  <button id="btnJump">↑</button>
+  <button id="btnRight">→</button>
 </div>
 
 <script>
@@ -108,8 +109,8 @@ function resize(){
 window.addEventListener('resize', resize);
 
 const GRAV = 0.55;
-const JUMP = -11.5;
-const SPEED = 3.2;
+const JUMP = -13;      // чуть выше прыжок
+const SPEED = 2.8;     // чуть медленнее для удобства
 
 let player, platforms, hearts, goal, spikes, camX, running, won, keys;
 
@@ -136,10 +137,11 @@ function initLevel(){
     {x:2090,y:320},
   ].map(h => ({...h, r:12, taken:false}));
 
+  // Шипы убраны с платформы 820 (там был "несправедливый").
+  // Оставшиеся стоят так, что их легко перепрыгнуть.
   spikes = [
-    {x:820, y:320, w:30, h:20},
-    {x:1620,y:380, w:30, h:20},
-    {x:1980,y:260, w:30, h:20},
+    {x:1260,y:360, w:30, h:20},  // на платформе 1260, но чуть в стороне от края
+    {x:1730,y:320, w:30, h:20},  // на платформе 1730
   ];
 
   goal = {x:2480, y:360, w:60, h:80};
@@ -161,8 +163,6 @@ function startGame(){
 
 function restart(){ startGame(); }
 
-function press(dir, val){ if(keys) keys[dir] = val; }
-
 function jump(){
   if(player && player.onGround){
     player.vy = JUMP;
@@ -170,6 +170,32 @@ function jump(){
   }
 }
 
+// --- Кнопки с поддержкой удержания ---
+function bindHold(btn, onDown, onUp){
+  const down = e => { e.preventDefault(); onDown(); };
+  const up   = e => { e.preventDefault(); if(onUp) onUp(); };
+
+  btn.addEventListener('touchstart', down, {passive:false});
+  btn.addEventListener('touchend',   up,   {passive:false});
+  btn.addEventListener('touchcancel',up,   {passive:false});
+  btn.addEventListener('mousedown',  down);
+  btn.addEventListener('mouseup',    up);
+  btn.addEventListener('mouseleave', up);
+}
+
+bindHold(document.getElementById('btnLeft'),
+  () => { keys.left = true; },
+  () => { keys.left = false; });
+
+bindHold(document.getElementById('btnRight'),
+  () => { keys.right = true; },
+  () => { keys.right = false; });
+
+// Прыжок срабатывает один раз, даже если держать
+document.getElementById('btnJump').addEventListener('touchstart', e => { e.preventDefault(); jump(); }, {passive:false});
+document.getElementById('btnJump').addEventListener('mousedown', e => { e.preventDefault(); jump(); });
+
+// Клавиатура
 window.addEventListener('keydown', e => {
   if(!keys) keys = {left:false,right:false};
   if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
@@ -209,8 +235,399 @@ function update(){
   if(player.y > 700){ lose(); return; }
 
   for(const s of spikes){
-    if(player.x + player.w > s.x && player.x < s.x + s.w &&
-       player.y + player.h > s.y && player.y < s.y + s.h){
+    // небольшая "прощающая" зона, чтобы шип не убивал с полпинка
+    if(player.x + player.w - 4 > s.x && player.x + 4 < s.x + s.w &&
+       player.y + player.h - 2 > s.y && player.y + 4 < s.y + s.h){
+      lose(); return;
+    }
+  }
+
+  for(const h of hearts){
+    if(h.taken) continue;
+    if(player.x + player.w > h.x - h.r && player.x < h.x + h.r &&
+       player.y + player.h > h.y - h.r && player.y < h.y + h.r){
+      h.taken = true;
+      player.hearts++;
+    }
+  }
+
+  if(player.x + player.w > goal.x && player.x < goal.x + goal.w &&
+     player.y + player.h > goal.y && player.y < goal.y + goal.h){
+    win();
+    return;
+  }
+
+  const targetCam = player.x - W * 0.3;
+  camX += (targetCam - camX) * 0.1;
+  if(camX < 0) camX = 0;
+}
+
+function win(){
+  running = false; won = true;
+
+  const all = player.hearts === hearts.length;
+  const winText = all
+    ? 'Ты собрала все сердечки и дошла до меня. Это судьба.'
+    : `Сердечек собрано: ${player.hearts} из ${hearts.length}. Но главное — ты дошла.`;
+
+  const prizeText = all
+    ? 'Теперь я должен тебе одно желание. Любое. Напиши мне его — и я выполню.'
+    : 'Ты всё равно победила. И я всё равно должен тебе желание. Пиши, какое.';
+
+  document.getElementById('winText').textContent = winText;
+  document.getElementById('prizeText').textContent = prizeText;
+  document.getElementById('win').classList.remove('hidden');
+}
+
+function lose(){
+  running = false;
+  document.getElementById('lose').classList.remove('hidden');
+}
+
+function draw(){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#2a0f1c');
+  g.addColorStop(1,'#12060c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = 'rgba(255,200,220,.25)';
+  for(let i=0;i<40;i++){
+    const sx = (i*137 - camX*0.3) % (W+40);
+    const x = sx < 0 ? sx + W + 40 : sx;
+    const y = (i*53) % (H*0.7);
+    ctx.fillRect(x, y, 2, 2);
+  }
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  const offsetY = H - 640;
+
+  for(const p of platforms){
+    const x = p.x;
+    const y = p.y + offsetY;
+    const grad = ctx.createLinearGradient(x,y,x,y+p.h);
+    grad.addColorStop(0,'#3d1c2a');
+    grad.addColorStop(1,'#1e0e17');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, p.w, p.h);
+    ctx.strokeStyle = 'rgba(255,77,125,.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, p.w, p.h);
+  }
+
+  ctx.fillStyle = '#ff4d7d';
+  for(const s of spikes){
+    const y = s.y + offsetY;
+    ctx.beginPath();
+    ctx.moveTo(s.x, y + s.h);
+    ctx.lineTo(s.x + s.w/2, y);
+    ctx.lineTo(s.x + s.w, y + s.h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  for(const h of hearts){
+    if(h.taken) continue;
+    const y = h.y + offsetY;
+    ctx.font = '20px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('❤️', h.x, y + 7);
+  }
+
+  {
+    const gx = goal.x, gy = goal.y + offsetY, gw = goal.w, gh = goal.h;
+    const glow = ctx.createRadialGradient(gx+gw/2, gy+gh/2, 5, gx+gw/2, gy+gh/2, 80);
+    glow.addColorStop(0,'rgba(255,120,160,.5)');
+    glow.addColorStop(1,'rgba(255,120,160,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(gx-60, gy-60, gw+120, gh+120);
+
+    ctx.font = '64px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('👸', gx + gw/2, gy + gh);
+  }
+
+  {
+    const px = player.x, py = player.y + offsetY;
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath();
+    ctx.ellipse(px + player.w/2, py + player.h + 4, 16, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.font = '34px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🐰', px + player.w/2, py + player.h);
+  }
+
+  ctx.restore();
+
+  ctx.fillStyle = '#ffb3c9';
+  ctx.font = '16px Georgia';
+  ctx.textAlign = 'left';
+  ctx.fillText('❤️ ' + player.hearts + ' / ' + hearts.length, 16, 30);
+
+  const prog = Math.min(1, player.x / goal.x);
+  ctx.fillStyle = 'rgba(255,77,125,.25)';
+  ctx.fillRect(16, 42, W - 32, 6);
+  ctx.fillStyle = '#ff4d7d';
+  ctx.fillRect(16, 42, (W - 32) * prog, 6);
+}
+
+function loop(){
+  if(!running) { draw(); return; }
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+resize();
+initLevel();
+keys = {left:false, right:false};
+draw();
+</script>
+</body>
+</html> <!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Мини-игра</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { overscroll-behavior:none; touch-action:manipulation; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #3d1626, #14080e 60%);
+    color:#ffeaf1; font-family: Georgia, serif;
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    overflow:hidden; padding:12px;
+  }
+  h1 { font-size:19px; margin-bottom:4px; color:#ffb3c9; text-align:center; }
+  p.sub { font-size:12px; opacity:.7; margin-bottom:10px; text-align:center; }
+  #wrap {
+    position:relative; width:100%; max-width:420px;
+    aspect-ratio: 2/3;
+    background:linear-gradient(#1a0c14, #2a1520);
+    border-radius:18px; overflow:hidden;
+    border:1px solid rgba(255,77,125,.3);
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+    flex-shrink:0;
+  }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .overlay {
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(20,8,14,.9); backdrop-filter:blur(6px);
+    text-align:center; padding:24px; z-index:5;
+  }
+  .overlay h2 { font-size:23px; margin-bottom:14px; color:#ffb3c9; }
+  .overlay p { font-size:15px; opacity:.95; margin-bottom:16px; line-height:1.6; }
+  .overlay .prize {
+    font-size:17px; color:#ff4d7d; font-style:italic;
+    line-height:1.6; margin: 10px 0 22px;
+  }
+  .overlay button, .btn {
+    padding:13px 26px; border-radius:40px; border:none;
+    background:linear-gradient(135deg,#ff4d7d,#ff7aa2); color:#fff;
+    font-size:15px; font-family:inherit; cursor:pointer;
+    box-shadow:0 6px 20px rgba(255,77,125,.4);
+    text-decoration:none; display:inline-block;
+  }
+  .btn.ghost { background:transparent; border:1.5px solid #ff4d7d; color:#ffb3c9; box-shadow:none; margin-top:12px; }
+  .controls { margin-top:12px; display:flex; gap:14px; }
+  .controls button {
+    width:76px; height:76px; border-radius:50%; font-size:26px;
+    background:rgba(255,77,125,.22); border:2px solid #ff4d7d; color:#ffb3c9;
+    user-select:none; -webkit-user-select:none;
+    touch-action:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .controls button:active { background:rgba(255,77,125,.45); transform:scale(.95); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<h1>Дойди до неё ❤️</h1>
+<p class="sub">Прыгай по платформам и не упади</p>
+
+<div id="wrap">
+  <canvas id="c"></canvas>
+
+  <div id="start" class="overlay">
+    <h2>Готов?</h2>
+    <p>Управляй стрелками или кнопками внизу.<br>Собери сердечки по пути и дойди до неё.</p>
+    <button onclick="startGame()">Играть</button>
+    <a href="index.html" class="btn ghost">← Назад</a>
+  </div>
+
+  <div id="win" class="overlay hidden">
+    <h2>Ты дошла ❤️</h2>
+    <p id="winText"></p>
+    <p class="prize" id="prizeText"></p>
+    <button onclick="restart()">Ещё раз</button>
+  </div>
+
+  <div id="lose" class="overlay hidden">
+    <h2>Ой…</h2>
+    <p>Не получилось. Попробуй ещё раз!</p>
+    <button onclick="restart()">Заново</button>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="btnLeft">←</button>
+  <button id="btnJump">↑</button>
+  <button id="btnRight">→</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize(){
+  const r = canvas.getBoundingClientRect();
+  W = canvas.width = r.width * devicePixelRatio;
+  H = canvas.height = r.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  W = r.width; H = r.height;
+}
+window.addEventListener('resize', resize);
+
+const GRAV = 0.55;
+const JUMP = -13;      // чуть выше прыжок
+const SPEED = 2.8;     // чуть медленнее для удобства
+
+let player, platforms, hearts, goal, spikes, camX, running, won, keys;
+
+function initLevel(){
+  platforms = [
+    {x:0,   y:520, w:400, h:120},
+    {x:440, y:460, w:120, h:180},
+    {x:600, y:400, w:120, h:240},
+    {x:760, y:340, w:100, h:300},
+    {x:900, y:400, w:150, h:240},
+    {x:1090,y:460, w:130, h:180},
+    {x:1260,y:380, w:100, h:260},
+    {x:1400,y:320, w:120, h:320},
+    {x:1560,y:400, w:130, h:240},
+    {x:1730,y:340, w:120, h:300},
+    {x:1890,y:280, w:120, h:360},
+    {x:2050,y:360, w:140, h:280},
+    {x:2230,y:440, w:400, h:200},
+  ];
+
+  hearts = [
+    {x:480, y:420}, {x:640, y:360}, {x:940, y:360},
+    {x:1300,y:340}, {x:1440,y:280}, {x:1930,y:240},
+    {x:2090,y:320},
+  ].map(h => ({...h, r:12, taken:false}));
+
+  // Шипы убраны с платформы 820 (там был "несправедливый").
+  // Оставшиеся стоят так, что их легко перепрыгнуть.
+  spikes = [
+    {x:1260,y:360, w:30, h:20},  // на платформе 1260, но чуть в стороне от края
+    {x:1730,y:320, w:30, h:20},  // на платформе 1730
+  ];
+
+  goal = {x:2480, y:360, w:60, h:80};
+
+  player = {x:60, y:480, w:32, h:32, vx:0, vy:0, onGround:false, face:1, hearts:0};
+  camX = 0;
+  won = false;
+}
+
+function startGame(){
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('win').classList.add('hidden');
+  document.getElementById('lose').classList.add('hidden');
+  initLevel();
+  running = true;
+  keys = {left:false, right:false};
+  loop();
+}
+
+function restart(){ startGame(); }
+
+function jump(){
+  if(player && player.onGround){
+    player.vy = JUMP;
+    player.onGround = false;
+  }
+}
+
+// --- Кнопки с поддержкой удержания ---
+function bindHold(btn, onDown, onUp){
+  const down = e => { e.preventDefault(); onDown(); };
+  const up   = e => { e.preventDefault(); if(onUp) onUp(); };
+
+  btn.addEventListener('touchstart', down, {passive:false});
+  btn.addEventListener('touchend',   up,   {passive:false});
+  btn.addEventListener('touchcancel',up,   {passive:false});
+  btn.addEventListener('mousedown',  down);
+  btn.addEventListener('mouseup',    up);
+  btn.addEventListener('mouseleave', up);
+}
+
+bindHold(document.getElementById('btnLeft'),
+  () => { keys.left = true; },
+  () => { keys.left = false; });
+
+bindHold(document.getElementById('btnRight'),
+  () => { keys.right = true; },
+  () => { keys.right = false; });
+
+// Прыжок срабатывает один раз, даже если держать
+document.getElementById('btnJump').addEventListener('touchstart', e => { e.preventDefault(); jump(); }, {passive:false});
+document.getElementById('btnJump').addEventListener('mousedown', e => { e.preventDefault(); jump(); });
+
+// Клавиатура
+window.addEventListener('keydown', e => {
+  if(!keys) keys = {left:false,right:false};
+  if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+  if(e.key === 'ArrowRight'|| e.key === 'd') keys.right = true;
+  if(e.key === 'ArrowUp' || e.key === ' ' || e.key === 'w'){ e.preventDefault(); jump(); }
+});
+window.addEventListener('keyup', e => {
+  if(!keys) return;
+  if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+  if(e.key === 'ArrowRight'|| e.key === 'd') keys.right = false;
+});
+
+function update(){
+  if(!running) return;
+
+  player.vx = 0;
+  if(keys.left)  { player.vx = -SPEED; player.face = -1; }
+  if(keys.right) { player.vx =  SPEED; player.face =  1; }
+  player.x += player.vx;
+
+  player.vy += GRAV;
+  player.y += player.vy;
+
+  player.onGround = false;
+  for(const p of platforms){
+    const overlapX = player.x + player.w > p.x && player.x < p.x + p.w;
+    const prevBottom = player.y + player.h - player.vy;
+    const bottom = player.y + player.h;
+    if(overlapX && player.vy >= 0 && prevBottom <= p.y + 2 && bottom >= p.y){
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+  }
+
+  if(player.x < 0) player.x = 0;
+  if(player.y > 700){ lose(); return; }
+
+  for(const s of spikes){
+    // небольшая "прощающая" зона, чтобы шип не убивал с полпинка
+    if(player.x + player.w - 4 > s.x && player.x + 4 < s.x + s.w &&
+       player.y + player.h - 2 > s.y && player.y + 4 < s.y + s.h){
       lose(); return;
     }
   }
